@@ -108,14 +108,37 @@ def main():
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or None
-    out_w = crop_w if do_crop else fw
-    out_h = crop_h if do_crop else fh
+    # out_w = crop_w if do_crop else fw
+    # out_h = crop_h if do_crop else fh
+    if do_crop:
+        # Use the actual crop dimensions, not the requested dimensions
+        test_frame = apply_crop(
+            first_frame,
+            args.crop_x,
+            args.crop_y,
+            crop_w,
+            crop_h
+        )
+    
+        out_h, out_w = test_frame.shape[:2]
+    
+    else:
+        out_w = fw
+        out_h = fh
+    
     out_fps = fps / args.frame_skip if do_skip else fps
 
     os.makedirs(frames_dir, exist_ok=True)
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(video_output_path, fourcc, out_fps, (out_w, out_h))
+
+    print("\n--- VIDEO WRITER DEBUG ---")
+    print(f"Writer opened: {writer.isOpened()}")
+    print(f"Expected size: {out_w}x{out_h}")
+    print(f"Output FPS: {out_fps}")
+    print("Codec: mp4v")
+    print("--------------------------")
 
     # Rewind capture to the start to process the whole video
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -132,6 +155,25 @@ def main():
             continue
         if do_crop:
             frame = apply_crop(frame, args.crop_x, args.crop_y, crop_w, crop_h)
+            
+        
+        h, w = frame.shape[:2]
+
+        if written == 0:
+            print("\n--- FIRST OUTPUT FRAME ---")
+            print(f"Frame size: {w}x{h}")
+            print(f"Frame shape: {frame.shape}")
+            print(f"Frame dtype: {frame.dtype}")
+            print(f"Writer expects: {out_w}x{out_h}")
+            print("--------------------------")
+        
+        if (w, h) != (out_w, out_h):
+            raise RuntimeError(
+                f"Frame size mismatch at frame {frame_idx}: "
+                f"frame={w}x{h}, writer={out_w}x{out_h}"
+            )
+                
+        
         writer.write(frame)
         frame_path = os.path.join(frames_dir, f"{dataset_name}_{written:05d}.jpg")
         cv2.imwrite(frame_path, frame)

@@ -1,11 +1,12 @@
 # Video Frame Tools
 
-Python scripts to extract and pre-process video frames with OpenCV, built for preparing image datasets (e.g. 3D reconstruction, object detection).
+Python scripts to convert, extract and pre-process video frames, built for preparing image datasets (e.g. 3D reconstruction, object detection).
 
 ## Requirements
 
 - Python 3.7+
-- [OpenCV](https://pypi.org/project/opencv-python/)
+- [OpenCV](https://pypi.org/project/opencv-python/) (for `video_to_frame.py` and `preprocess_video.py`)
+- [FFmpeg](https://ffmpeg.org/download.html), available in the system `PATH` (for `dav_to_mp4_converter.py`)
 
 ```bash
 pip install opencv-python
@@ -13,8 +14,51 @@ pip install opencv-python
 
 ## Scripts
 
+- [`dav_to_mp4_converter.py`](#dav_to_mp4_converterpy) — converts `.dav` video files (e.g. from DVR/CCTV cameras) to `.mp4` using FFmpeg.
 - [`video_to_frame.py`](#video_to_framepy) — simple frame extraction controlled by desired output FPS.
 - [`preprocess_video.py`](#preprocess_videopy) — crop, frame removal, and a preview step before processing the whole video.
+
+---
+
+## `dav_to_mp4_converter.py`
+
+Converts a `.dav` video file to `.mp4`. It first tries a fast conversion **without re-encoding** (stream copy, original quality) and automatically falls back to **H.264 re-encoding** if the direct copy fails.
+
+### Features
+
+- Two-step conversion strategy:
+  1. **Stream copy** (`-c copy`): no quality loss and very fast
+  2. **H.264 re-encoding** (fallback): `libx264`, preset `medium`, CRF `20`, AAC audio at 192 kbps
+- Maps the first video stream and the audio stream, if present
+- `+faststart` enabled on the output MP4 for better playback/streaming
+- Removes the incomplete output file if an attempt fails
+- Validates the input (file must exist and have the `.dav` extension) and prints a clear error message if FFmpeg is not found
+
+### Usage
+
+```bash
+python dav_to_mp4_converter.py <input_file.dav>
+```
+
+- `input` — path to the input `.dav` file
+
+#### Example
+
+```bash
+python dav_to_mp4_converter.py recording.dav
+```
+
+The converted file is saved in an `output/` folder created in the **current working directory** (not next to the input file):
+
+```
+output/recording.mp4
+```
+
+### Notes
+
+- If the stream copy attempt fails, the terminal shows a warning and the script automatically retries with H.264 re-encoding, which is slower and slightly lossy (CRF 20 is visually near-lossless).
+- If both attempts fail, the script prints an error and exits without leaving a partial `.mp4` behind.
+- A converted `.mp4` can be used directly as input for `video_to_frame.py` or `preprocess_video.py`.
 
 ---
 
@@ -133,4 +177,4 @@ results/
 ### Notes
 
 - The dataset name (`dataframe_<video_name>`) is automatically derived from the video file name (without extension); if the source is a webcam, it uses `"webcam"`.
-- The crop is applied before the final resize — `--crop_w`/`--crop_h` directly define the output dimensions.
+- The crop is applied directly on each frame — `--crop_w`/`--crop_h` define the output dimensions (no extra resize step).
